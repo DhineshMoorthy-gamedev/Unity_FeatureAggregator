@@ -4,12 +4,26 @@ using UnityEditor;
 
 namespace FeatureAggregator
 {
+    public enum FeatureTag
+    {
+        Core,
+        Experimental,
+        Legacy,
+        UI,
+        Gameplay,
+        Optimization,
+        Tooling
+    }
+
     [CreateAssetMenu(fileName = "NewFeature", menuName = "Feature Aggregator/Feature Definition")]
     public class FeatureDefinition : ScriptableObject
     {
         public string featureName;
         [TextArea(3, 10)]
         public string description;
+
+        public List<FeatureTag> tags = new List<FeatureTag>();
+        public List<FeatureDefinition> dependencies = new List<FeatureDefinition>();
 
         public List<MonoScript> relatedScripts = new List<MonoScript>();
         public List<Object> relatedAssets = new List<Object>(); // Scenes, Prefabs, etc.

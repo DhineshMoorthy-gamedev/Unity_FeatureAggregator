@@ -14,6 +14,7 @@ namespace FeatureAggregator
         private Vector2 leftScrollPos;
         private Vector2 rightScrollPos;
         private string searchString = "";
+        private FeatureTag? filterTag = null;
         private string newFeatureName = "";
         private bool isCreatingNew = false;
         
@@ -47,6 +48,21 @@ namespace FeatureAggregator
                 searchString = "";
                 GUI.FocusControl(null);
             }
+
+            GUILayout.Space(10);
+            
+            string tagLabel = filterTag.HasValue ? filterTag.Value.ToString() : "All Tags";
+            if (GUILayout.Button(tagLabel, EditorStyles.toolbarDropDown, GUILayout.Width(100)))
+            {
+                GenericMenu menu = new GenericMenu();
+                menu.AddItem(new GUIContent("All Tags"), !filterTag.HasValue, () => filterTag = null);
+                foreach (FeatureTag tag in System.Enum.GetValues(typeof(FeatureTag)))
+                {
+                    menu.AddItem(new GUIContent(tag.ToString()), filterTag == tag, () => filterTag = tag);
+                }
+                menu.ShowAsContext();
+            }
+
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("+ New Feature", EditorStyles.toolbarButton))
             {
@@ -57,6 +73,10 @@ namespace FeatureAggregator
             if (GUILayout.Button("Refresh", EditorStyles.toolbarButton))
             {
                 RefreshFeatureList();
+            }
+            if (GUILayout.Button("Graph View", EditorStyles.toolbarButton))
+            {
+                DependencyGraphWindow.Open();
             }
             GUILayout.EndHorizontal();
 
@@ -93,6 +113,9 @@ namespace FeatureAggregator
                 if (!string.IsNullOrEmpty(searchString) && !feature.featureName.ToLower().Contains(searchString.ToLower()))
                     continue;
 
+                if (filterTag.HasValue && !feature.tags.Contains(filterTag.Value))
+                    continue;
+
                 GUIStyle style = new GUIStyle(EditorStyles.label); // Default doesn't have background, use button or custom
                 if (GUI.skin != null) style = new GUIStyle(GUI.skin.button);
                 
@@ -102,12 +125,22 @@ namespace FeatureAggregator
                     style.normal.textColor = Color.cyan;
                 }
 
-                if (GUILayout.Button(feature.featureName, style, GUILayout.Height(30)))
+                GUILayout.BeginHorizontal(style, GUILayout.Height(30));
+                
+                if (GUILayout.Button(feature.featureName, EditorStyles.label, GUILayout.ExpandWidth(true), GUILayout.Height(30)))
                 {
                     selectedFeature = feature;
                     isCreatingNew = false;
                     GUI.FocusControl(null);
                 }
+
+                // Draw tiny tag indicators
+                foreach (var tag in feature.tags)
+                {
+                    DrawTagIndicator(tag);
+                }
+
+                GUILayout.EndHorizontal();
             }
 
             GUILayout.EndScrollView();
@@ -173,6 +206,11 @@ namespace FeatureAggregator
                 SerializedProperty descProp = so.FindProperty("description");
                 EditorGUILayout.PropertyField(descProp);
                 
+                GUILayout.Space(10);
+
+                // Tags
+                DrawTagEditor(so);
+
                 GUILayout.Space(10);
 
                 // Actions
@@ -249,6 +287,11 @@ namespace FeatureAggregator
                          FeatureManager.AddAssetToFeature(selectedFeature, obj);
                     }
                 });
+                
+                GUILayout.Space(10);
+
+                // Dependencies
+                DrawDependencyEditor(so);
 
                 GUILayout.Space(10);
 
@@ -272,6 +315,124 @@ namespace FeatureAggregator
 
             GUILayout.EndScrollView();
             GUILayout.EndVertical();
+        }
+
+        private void DrawTagIndicator(FeatureTag tag)
+        {
+            Color color = GetTagColor(tag);
+            GUI.color = color;
+            GUILayout.Box("", GUILayout.Width(10), GUILayout.Height(10));
+            GUI.color = Color.white;
+        }
+
+        private void DrawTagEditor(SerializedObject so)
+        {
+            EditorGUILayout.LabelField("Tags", EditorStyles.boldLabel);
+            SerializedProperty tagsProp = so.FindProperty("tags");
+
+            GUILayout.BeginHorizontal();
+            for (int i = 0; i < tagsProp.arraySize; i++)
+            {
+                var tagProp = tagsProp.GetArrayElementAtIndex(i);
+                FeatureTag tag = (FeatureTag)tagProp.enumValueIndex;
+
+                GUIStyle tagStyle = new GUIStyle(EditorStyles.miniButton);
+                tagStyle.fixedHeight = 20;
+                
+                if (GUILayout.Button($"{tag} x", tagStyle))
+                {
+                    tagsProp.DeleteArrayElementAtIndex(i);
+                    break;
+                }
+            }
+
+            if (GUILayout.Button("+", GUILayout.Width(25)))
+            {
+                GenericMenu menu = new GenericMenu();
+                foreach (FeatureTag tag in System.Enum.GetValues(typeof(FeatureTag)))
+                {
+                    bool alreadyHas = false;
+                    for (int j = 0; j < tagsProp.arraySize; j++)
+                    {
+                        if (tagsProp.GetArrayElementAtIndex(j).enumValueIndex == (int)tag)
+                        {
+                            alreadyHas = true;
+                            break;
+                        }
+                    }
+
+                    if (!alreadyHas)
+                    {
+                        menu.AddItem(new GUIContent(tag.ToString()), false, () => 
+                        {
+                            tagsProp.InsertArrayElementAtIndex(tagsProp.arraySize);
+                            tagsProp.GetArrayElementAtIndex(tagsProp.arraySize - 1).enumValueIndex = (int)tag;
+                            so.ApplyModifiedProperties();
+                        });
+                    }
+                }
+                menu.ShowAsContext();
+            }
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawDependencyEditor(SerializedObject so)
+        {
+            EditorGUILayout.LabelField("Dependencies", EditorStyles.boldLabel);
+            SerializedProperty depsProp = so.FindProperty("dependencies");
+
+            for (int i = 0; i < depsProp.arraySize; i++)
+            {
+                var depProp = depsProp.GetArrayElementAtIndex(i);
+                FeatureDefinition dep = (FeatureDefinition)depProp.objectReferenceValue;
+
+                GUILayout.BeginHorizontal();
+                EditorGUILayout.PropertyField(depProp, GUIContent.none);
+                if (GUILayout.Button("X", GUILayout.Width(25)))
+                {
+                    depsProp.DeleteArrayElementAtIndex(i);
+                }
+                GUILayout.EndHorizontal();
+            }
+
+            // Drop area for dependencies
+            DropAreaGUI("Drop Feature Definitions here to add Dependencies", (obj) => 
+            {
+                if (obj is FeatureDefinition dep && dep != selectedFeature)
+                {
+                    bool alreadyExists = false;
+                    for (int i = 0; i < depsProp.arraySize; i++)
+                    {
+                        if (depsProp.GetArrayElementAtIndex(i).objectReferenceValue == dep)
+                        {
+                            alreadyExists = true;
+                            break;
+                        }
+                    }
+
+                    if (!alreadyExists)
+                    {
+                        depsProp.InsertArrayElementAtIndex(depsProp.arraySize);
+                        depsProp.GetArrayElementAtIndex(depsProp.arraySize - 1).objectReferenceValue = dep;
+                        so.ApplyModifiedProperties();
+                    }
+                }
+            });
+        }
+
+        private Color GetTagColor(FeatureTag tag)
+        {
+            switch (tag)
+            {
+                case FeatureTag.Core: return new Color(0.2f, 0.8f, 0.2f); // Green
+                case FeatureTag.Experimental: return new Color(0.8f, 0.4f, 0.1f); // Orange
+                case FeatureTag.Legacy: return new Color(0.7f, 0.2f, 0.2f); // Red
+                case FeatureTag.UI: return new Color(0.2f, 0.5f, 0.9f); // Blue
+                case FeatureTag.Gameplay: return new Color(0.8f, 0.8f, 0.2f); // Yellow
+                case FeatureTag.Optimization: return new Color(0.5f, 0.2f, 0.8f); // Purple
+                case FeatureTag.Tooling: return new Color(0.2f, 0.8f, 0.8f); // Cyan
+                default: return Color.gray;
+            }
         }
 
         private void DropAreaGUI(string label, System.Action<Object> onDrop)
