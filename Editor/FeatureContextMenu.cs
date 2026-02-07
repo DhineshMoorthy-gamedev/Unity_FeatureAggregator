@@ -57,12 +57,6 @@ namespace FeatureAggregator
             }
         }
 
-        [MenuItem("Assets/Feature Aggregator/Open Dependency Graph", false, 21)]
-        private static void OpenDependencyGraph()
-        {
-            DependencyGraphWindow.Open();
-        }
-
         private static void CreateNewFeature()
         {
             FeatureAggregatorWindow.ShowWindow();

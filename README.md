@@ -6,7 +6,6 @@
 
 -   **Logical Grouping**: Create "Features" to group related scripts, scenes, prefabs, and other assets.
 -   **Tag System**: Categorize features with tags like "Core", "Experimental", "Legacy", and filter them effortlessly.
--   **Dependency Graph**: Visualize your project's architecture with a dynamic graph showing how features depend on each other.
 -   **Quick Access**: Open all related scripts in your IDE with a single click.
 -   **Context Menu Integration**: Add files to features directly from the Project view right-click menu.
 -   **Drag & Drop**: Easily add scripts and assets to a feature by dragging them into the inspector window.

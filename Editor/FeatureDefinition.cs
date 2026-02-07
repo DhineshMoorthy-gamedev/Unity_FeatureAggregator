@@ -23,7 +23,6 @@ namespace FeatureAggregator
         public string description;
 
         public List<FeatureTag> tags = new List<FeatureTag>();
-        public List<FeatureDefinition> dependencies = new List<FeatureDefinition>();
 
         public List<MonoScript> relatedScripts = new List<MonoScript>();
         public List<Object> relatedAssets = new List<Object>(); // Scenes, Prefabs, etc.

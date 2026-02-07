@@ -58,7 +58,15 @@ namespace FeatureAggregator
                 menu.AddItem(new GUIContent("All Tags"), !filterTag.HasValue, () => filterTag = null);
                 foreach (FeatureTag tag in System.Enum.GetValues(typeof(FeatureTag)))
                 {
-                    menu.AddItem(new GUIContent(tag.ToString()), filterTag == tag, () => filterTag = tag);
+                    FeatureTag currentTag = tag; // Capture for lambda
+                    menu.AddItem(new GUIContent(currentTag.ToString()), filterTag == currentTag, () => 
+                    {
+                        filterTag = currentTag;
+                        if (selectedFeature != null && !selectedFeature.tags.Contains(currentTag))
+                        {
+                            selectedFeature = null;
+                        }
+                    });
                 }
                 menu.ShowAsContext();
             }
@@ -73,10 +81,6 @@ namespace FeatureAggregator
             if (GUILayout.Button("Refresh", EditorStyles.toolbarButton))
             {
                 RefreshFeatureList();
-            }
-            if (GUILayout.Button("Graph View", EditorStyles.toolbarButton))
-            {
-                DependencyGraphWindow.Open();
             }
             GUILayout.EndHorizontal();
 
@@ -290,11 +294,6 @@ namespace FeatureAggregator
                 
                 GUILayout.Space(10);
 
-                // Dependencies
-                DrawDependencyEditor(so);
-
-                GUILayout.Space(10);
-
                 if (GUILayout.Button("Delete Feature", GUILayout.Width(100)))
                 {
                     if (EditorUtility.DisplayDialog("Delete Feature", 
@@ -320,9 +319,15 @@ namespace FeatureAggregator
         private void DrawTagIndicator(FeatureTag tag)
         {
             Color color = GetTagColor(tag);
-            GUI.color = color;
-            GUILayout.Box("", GUILayout.Width(10), GUILayout.Height(10));
-            GUI.color = Color.white;
+            // Use GetRect to reserve space and then DrawRect for a solid, bright color block
+            Rect rect = GUILayoutUtility.GetRect(12, 30);
+            rect.y += 10; // Center in the 30px row
+            rect.width = 10;
+            rect.height = 10;
+            
+            // Draw a tiny black border to make it pop even more
+            EditorGUI.DrawRect(new Rect(rect.x-1, rect.y-1, rect.width+2, rect.height+2), new Color(0.1f, 0.1f, 0.1f));
+            EditorGUI.DrawRect(rect, color);
         }
 
         private void DrawTagEditor(SerializedObject so)
@@ -339,11 +344,16 @@ namespace FeatureAggregator
                 GUIStyle tagStyle = new GUIStyle(EditorStyles.miniButton);
                 tagStyle.fixedHeight = 20;
                 
+                Color originalColor = GUI.backgroundColor;
+                GUI.backgroundColor = GetTagColor(tag);
+                
                 if (GUILayout.Button($"{tag} x", tagStyle))
                 {
                     tagsProp.DeleteArrayElementAtIndex(i);
+                    GUI.backgroundColor = originalColor;
                     break;
                 }
+                GUI.backgroundColor = originalColor;
             }
 
             if (GUILayout.Button("+", GUILayout.Width(25)))
@@ -374,50 +384,6 @@ namespace FeatureAggregator
                 menu.ShowAsContext();
             }
             GUILayout.EndHorizontal();
-        }
-
-        private void DrawDependencyEditor(SerializedObject so)
-        {
-            EditorGUILayout.LabelField("Dependencies", EditorStyles.boldLabel);
-            SerializedProperty depsProp = so.FindProperty("dependencies");
-
-            for (int i = 0; i < depsProp.arraySize; i++)
-            {
-                var depProp = depsProp.GetArrayElementAtIndex(i);
-                FeatureDefinition dep = (FeatureDefinition)depProp.objectReferenceValue;
-
-                GUILayout.BeginHorizontal();
-                EditorGUILayout.PropertyField(depProp, GUIContent.none);
-                if (GUILayout.Button("X", GUILayout.Width(25)))
-                {
-                    depsProp.DeleteArrayElementAtIndex(i);
-                }
-                GUILayout.EndHorizontal();
-            }
-
-            // Drop area for dependencies
-            DropAreaGUI("Drop Feature Definitions here to add Dependencies", (obj) => 
-            {
-                if (obj is FeatureDefinition dep && dep != selectedFeature)
-                {
-                    bool alreadyExists = false;
-                    for (int i = 0; i < depsProp.arraySize; i++)
-                    {
-                        if (depsProp.GetArrayElementAtIndex(i).objectReferenceValue == dep)
-                        {
-                            alreadyExists = true;
-                            break;
-                        }
-                    }
-
-                    if (!alreadyExists)
-                    {
-                        depsProp.InsertArrayElementAtIndex(depsProp.arraySize);
-                        depsProp.GetArrayElementAtIndex(depsProp.arraySize - 1).objectReferenceValue = dep;
-                        so.ApplyModifiedProperties();
-                    }
-                }
-            });
         }
 
         private Color GetTagColor(FeatureTag tag)
